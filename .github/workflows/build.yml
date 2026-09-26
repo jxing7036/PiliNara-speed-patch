@@ -176,7 +176,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish nightly GitHub Release
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.create_release == 'true') || github.event_name == 'schedule' }}
+        if: ${{ inputs.create_release || github.event_name == 'schedule' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
