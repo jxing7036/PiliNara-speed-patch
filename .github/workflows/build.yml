@@ -100,6 +100,21 @@ jobs:
           flutter-version-file: PiliNara-source/pubspec.yaml
           cache: true
 
+      - name: Reset Flutter SDK worktree (cache 里可能存的是已打过补丁的 SDK)
+        shell: pwsh
+        run: |
+          # subosito/flutter-action 的 cache 会把「已打过官方 SDK 补丁」的 SDK 存进缓存，
+          # 下次还原后再打补丁就会 patch does not apply；这里先还原成干净工作区。
+          $root = $env:FLUTTER_ROOT
+          if (-not $root) { $root = Split-Path -Parent (Split-Path -Parent (Get-Command flutter).Source) }
+          if (Test-Path (Join-Path $root '.git')) {
+            git -C $root checkout -- .
+            if ($LASTEXITCODE -ne 0) { throw "还原 Flutter SDK 失败: $root" }
+            Write-Host "  已还原 Flutter SDK 工作区: $root"
+          } else {
+            Write-Host "  跳过（不是 git 仓库）: $root"
+          }
+
       - name: Apply official SDK patches (先统一补丁行尾为 LF，再跑 patch.ps1)
         shell: pwsh
         working-directory: PiliNara-source
