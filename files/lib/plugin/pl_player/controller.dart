@@ -127,6 +127,27 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     });
   }
 
+  /// Z 键用：最近一次非 1.0x 的倍速（1.0x ⇄ 该倍速切换）
+  double? _lastManualSpeed;
+
+  /// Z 键：当前不是 1.0x 就记下当前倍速并回到 1.0x；已经是 1.0x 就切回上次倍速
+  Future<void> toggleNormalSpeed() async {
+    final current = playbackSpeed;
+    if ((current - 1.0).abs() < 0.001) {
+      final restore = _lastManualSpeed;
+      if (restore == null || (restore - 1.0).abs() < 0.001) {
+        showKeyboardSpeedToast(1.0);
+        return;
+      }
+      await setManualPlaybackSpeed(restore);
+      showKeyboardSpeedToast(restore);
+    } else {
+      _lastManualSpeed = current;
+      await setManualPlaybackSpeed(1.0);
+      showKeyboardSpeedToast(1.0);
+    }
+  }
+
   final RxDouble volume = RxDouble(
     PlatformUtils.isDesktop ? Pref.desktopVolume : 1.0,
   );

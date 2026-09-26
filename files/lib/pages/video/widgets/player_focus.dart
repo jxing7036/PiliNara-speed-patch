@@ -159,13 +159,11 @@ class PlayerFocus extends StatelessWidget {
     }
 
 
-    // Z：恢复 1.0x 倍速（同时取消 X/C 长按定时器，防止后续 tick 改回去）
+    // Z：在 1.0x 与「上次倍速」之间来回切换（同时取消 X/C 长按定时器，防止后续 tick 改回去）
     if (key == LogicalKeyboardKey.keyZ) {
       if (event is KeyDownEvent && !plPlayerController.isLive && hasPlayer) {
-        plPlayerController
-          ..cancelLongPressTimer()
-          ..setManualPlaybackSpeed(1.0)
-          ..showKeyboardSpeedToast(1.0);
+        plPlayerController.cancelLongPressTimer();
+        unawaited(plPlayerController.toggleNormalSpeed());
       }
       return true;
     }
