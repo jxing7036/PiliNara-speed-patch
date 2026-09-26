@@ -1,143 +1,37 @@
 diff --git a/lib/pages/video/widgets/player_focus.dart b/lib/pages/video/widgets/player_focus.dart
-index 161b227..589095d 100644
+index 161b227..dfbae3f 100644
 --- a/lib/pages/video/widgets/player_focus.dart
 +++ b/lib/pages/video/widgets/player_focus.dart
-@@ -1,4 +1,5 @@
- import 'dart:async';
-+import 'dart:ffi';
- import 'dart:io' show exit, Platform;
- import 'dart:math' as math;
- 
-@@ -13,6 +14,80 @@ import 'package:flutter/services.dart'
- import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
- import 'package:material_ui/material_ui.dart';
- 
-+/// 是否是我们把中文输入法关成英文的（失焦时负责还原）
-+bool _imeRestoreOpen = false;
-+
-+/// Windows 输入法（IME）辅助：播放器拿到焦点时把中文输入法切成英文，
-+/// 离开播放器时再还原。
-+///
-+/// 否则开着中文输入法按 Z/X/C 会被输入法吞掉（先触发候选词），
-+/// 必须先手动切中英文才能用快捷键。
-+class _WindowsIme {
-+  static bool _inited = false;
-+  static bool _available = false;
-+  static late int Function() _getActiveWindow;
-+  static late int Function(int) _immGetContext;
-+  static late int Function(int, int) _immSetOpenStatus;
-+  static late int Function(int) _immGetOpenStatus;
-+  static late int Function(int, int) _immReleaseContext;
-+
-+  static bool get _ok {
-+    if (!_inited) {
-+      _inited = true;
-+      if (Platform.isWindows) {
-+        try {
-+          final user32 = DynamicLibrary.open('user32.dll');
-+          final imm32 = DynamicLibrary.open('imm32.dll');
-+          _getActiveWindow = user32.lookupFunction<IntPtr Function(),
-+              int Function()>('GetActiveWindow');
-+          _immGetContext = imm32.lookupFunction<IntPtr Function(IntPtr),
-+              int Function(int)>('ImmGetContext');
-+          _immSetOpenStatus = imm32.lookupFunction<
-+              Int32 Function(IntPtr, Int32),
-+              int Function(int, int)>('ImmSetOpenStatus');
-+          _immGetOpenStatus = imm32.lookupFunction<Int32 Function(IntPtr),
-+              int Function(int)>('ImmGetOpenStatus');
-+          _immReleaseContext = imm32.lookupFunction<
-+              Int32 Function(IntPtr, IntPtr),
-+              int Function(int, int)>('ImmReleaseContext');
-+          _available = true;
-+        } catch (_) {
-+          _available = false;
-+        }
-+      }
-+    }
-+    return _available;
-+  }
-+
-+  /// 当前输入法是否处于「中文（打开）」状态；未知返回 null
-+  static bool? isOpen() {
-+    if (!_ok) return null;
-+    final hwnd = _getActiveWindow();
-+    if (hwnd == 0) return null;
-+    final himc = _immGetContext(hwnd);
-+    if (himc == 0) return null;
-+    try {
-+      return _immGetOpenStatus(himc) != 0;
-+    } finally {
-+      _immReleaseContext(hwnd, himc);
-+    }
-+  }
-+
-+  /// 切换输入法中/英文状态（false = 英文）
-+  static void setOpen(bool open) {
-+    if (!_ok) return;
-+    final hwnd = _getActiveWindow();
-+    if (hwnd == 0) return;
-+    final himc = _immGetContext(hwnd);
-+    if (himc == 0) return;
-+    try {
-+      _immSetOpenStatus(himc, open ? 1 : 0);
-+    } finally {
-+      _immReleaseContext(hwnd, himc);
-+    }
-+  }
-+}
-+
- class PlayerFocus extends StatelessWidget {
-   const PlayerFocus({
-     super.key,
-@@ -50,6 +125,15 @@ class PlayerFocus extends StatelessWidget {
+@@ -50,6 +50,15 @@ class PlayerFocus extends StatelessWidget {
      return Focus(
        focusNode: focusNode,
        autofocus: true,
 +      onFocusChange: (hasFocus) {
 +        // 聚焦播放器：把中文输入法切英文（否则 Z/X/C 会被输入法吞掉）
-+        // 离开播放器：还原原来的中英文状态，保证输入框还能打中文
++        // 离开播放器（点弹幕/评论输入框等）：还原中文，输入框照常打中文
 +        if (hasFocus) {
-+          _keepImeOff();
++          plPlayerController.keepImeEnglish();
 +        } else {
-+          _restoreIme();
++          plPlayerController.restoreIme();
 +        }
 +      },
        onKeyEvent: (node, event) {
          final handled = _handleKey(context, event);
          if (handled || _shouldHandle(event.logicalKey)) {
-@@ -57,10 +141,30 @@ class PlayerFocus extends StatelessWidget {
+@@ -57,7 +66,11 @@ class PlayerFocus extends StatelessWidget {
          }
          return KeyEventResult.ignored;
        },
 -      child: child,
 +      child: Listener(
 +        // 播放中用户可能又手动切回中文，点一下播放器就再切回英文
-+        onPointerDown: (_) => _keepImeOff(),
++        onPointerDown: (_) => plPlayerController.keepImeEnglish(),
 +        child: child,
 +      ),
      );
    }
  
-+  /// 把输入法切到英文；只在当前是中文时记一次，供失焦还原
-+  void _keepImeOff() {
-+    if (_imeRestoreOpen) return;
-+    if (_WindowsIme.isOpen() == true) {
-+      _imeRestoreOpen = true;
-+      _WindowsIme.setOpen(false);
-+    }
-+  }
-+
-+  /// 还原进入播放器前的中文输入法状态
-+  void _restoreIme() {
-+    if (!_imeRestoreOpen) return;
-+    _imeRestoreOpen = false;
-+    _WindowsIme.setOpen(true);
-+  }
-+
-   bool get isFullScreen => plPlayerController.isFullScreen.value;
-   bool get hasPlayer => plPlayerController.videoPlayerController != null;
- 
-@@ -90,6 +194,41 @@ class PlayerFocus extends StatelessWidget {
+@@ -90,6 +103,41 @@ class PlayerFocus extends StatelessWidget {
      }
    }
  
@@ -179,7 +73,7 @@ index 161b227..589095d 100644
    bool _handleKey(BuildContext context, KeyEvent event) {
      final key = event.logicalKey;
  
-@@ -123,6 +262,24 @@ class PlayerFocus extends StatelessWidget {
+@@ -123,6 +171,24 @@ class PlayerFocus extends StatelessWidget {
        return true;
      }
  
@@ -205,10 +99,17 @@ index 161b227..589095d 100644
        if (!plPlayerController.isLive) {
          if (event is KeyDownEvent) {
 diff --git a/lib/plugin/pl_player/controller.dart b/lib/plugin/pl_player/controller.dart
-index 990e01a..a9127af 100644
+index 990e01a..dd77d64 100644
 --- a/lib/plugin/pl_player/controller.dart
 +++ b/lib/plugin/pl_player/controller.dart
-@@ -116,6 +116,38 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
+@@ -1,5 +1,6 @@
+ import 'dart:async' show Completer, StreamSubscription, Timer, unawaited;
+ import 'dart:convert' show ascii, utf8;
++import 'dart:ffi' as ffi;
+ import 'dart:io' show Platform;
+ import 'dart:math' show max, min;
+ import 'dart:ui' as ui;
+@@ -116,6 +117,62 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
    final RxDouble _playbackSpeed = Pref.playSpeedDefault.obs;
    late final RxDouble _longPressSpeed = Pref.longPressSpeedDefault.obs;
  
@@ -244,18 +145,44 @@ index 990e01a..a9127af 100644
 +    }
 +  }
 +
++  /// 是否是我们把中文输入法切成英文的（离开播放器时要还原）
++  bool _imeRestoreOpen = false;
++
++  /// 播放器拿到焦点 / 点击播放器时调用：当前是中文输入法就切英文。
++  ///
++  /// 否则开着中文输入法按 Z/X/C 会被输入法吞掉（先弹候选词），
++  /// 快捷键必须先手动切中英文才能用。
++  void keepImeEnglish() {
++    if (_imeRestoreOpen) return;
++    if (_WindowsIme.isOpen() == true) {
++      _imeRestoreOpen = true;
++      _WindowsIme.setOpen(false);
++    }
++  }
++
++  /// 还原进播放器前的中文输入法状态（失焦 / 播放器销毁时调用）。
++  ///
++  /// 只还原自己关掉的：点弹幕/评论输入框时中文照常可用。
++  void restoreIme() {
++    if (!_imeRestoreOpen) return;
++    _imeRestoreOpen = false;
++    _WindowsIme.setOpen(true);
++  }
++
    final RxDouble volume = RxDouble(
      PlatformUtils.isDesktop ? Pref.desktopVolume : 1.0,
    );
-@@ -2517,6 +2549,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
+@@ -2517,6 +2574,9 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
      speedLocked = false;
      _speedLockArmed = false;
      speedLockHint.value = SpeedLockHint.none;
 +    _keyboardSpeedTimer?.cancel();
++    // 播放器销毁时把中文输入法还原，避免离开视频页后输入法一直是英文
++    restoreIme();
      _cancelSubForSeek();
      if (!_isCloseAll && _playerCount > 1) {
        _playerCount -= 1;
-@@ -2544,6 +2577,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
+@@ -2544,6 +2604,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
      }
      _timer?.cancel();
      persistVideoPictureSettings();
@@ -263,6 +190,81 @@ index 990e01a..a9127af 100644
      // _position.close();
      // _playerEventSubs?.cancel();
      // _sliderPosition.close();
+@@ -2866,3 +2927,74 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
+     Get.back();
+   }
+ }
++
++/// Windows 输入法（IME）开关状态读写：Z/X/C 快捷键用。
++///
++/// Windows 上开着中文输入法时，字母键会先被 IME 拿去组词，
++/// Flutter 的 Focus.onKeyEvent 收不到，所以播放器聚焦时要把输入法切英文。
++/// 仅 Windows 生效，DLL 懒加载，失败静默降级（其它平台直接返回）。
++class _WindowsIme {
++  static bool _inited = false;
++  static bool _available = false;
++  static late int Function() _getActiveWindow;
++  static late int Function(int) _immGetContext;
++  static late int Function(int, int) _immSetOpenStatus;
++  static late int Function(int) _immGetOpenStatus;
++  static late int Function(int, int) _immReleaseContext;
++
++  static bool get _ok {
++    if (!_inited) {
++      _inited = true;
++      if (Platform.isWindows) {
++        try {
++          final user32 = ffi.DynamicLibrary.open('user32.dll');
++          final imm32 = ffi.DynamicLibrary.open('imm32.dll');
++          _getActiveWindow = user32.lookupFunction<ffi.IntPtr Function(),
++              int Function()>('GetActiveWindow');
++          _immGetContext = imm32.lookupFunction<ffi.IntPtr Function(ffi.IntPtr),
++              int Function(int)>('ImmGetContext');
++          _immSetOpenStatus = imm32.lookupFunction<
++              ffi.Int32 Function(ffi.IntPtr, ffi.Int32),
++              int Function(int, int)>('ImmSetOpenStatus');
++          _immGetOpenStatus = imm32.lookupFunction<ffi.Int32 Function(ffi.IntPtr),
++              int Function(int)>('ImmGetOpenStatus');
++          _immReleaseContext = imm32.lookupFunction<
++              ffi.Int32 Function(ffi.IntPtr, ffi.IntPtr),
++              int Function(int, int)>('ImmReleaseContext');
++          _available = true;
++        } catch (_) {
++          _available = false;
++        }
++      }
++    }
++    return _available;
++  }
++
++  /// 当前输入法是否处于「中文（打开）」状态；未知返回 null
++  static bool? isOpen() {
++    if (!_ok) return null;
++    final hwnd = _getActiveWindow();
++    if (hwnd == 0) return null;
++    final himc = _immGetContext(hwnd);
++    if (himc == 0) return null;
++    try {
++      return _immGetOpenStatus(himc) != 0;
++    } finally {
++      _immReleaseContext(hwnd, himc);
++    }
++  }
++
++  /// 切换输入法中/英文状态（false = 英文）
++  static void setOpen(bool open) {
++    if (!_ok) return;
++    final hwnd = _getActiveWindow();
++    if (hwnd == 0) return;
++    final himc = _immGetContext(hwnd);
++    if (himc == 0) return;
++    try {
++      _immSetOpenStatus(himc, open ? 1 : 0);
++    } finally {
++      _immReleaseContext(hwnd, himc);
++    }
++  }
++}
 diff --git a/lib/plugin/pl_player/view/view.dart b/lib/plugin/pl_player/view/view.dart
 index 0d52155..250299f 100644
 --- a/lib/plugin/pl_player/view/view.dart
