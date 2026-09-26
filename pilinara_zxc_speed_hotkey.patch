@@ -1,5 +1,5 @@
 diff --git a/lib/pages/video/widgets/player_focus.dart b/lib/pages/video/widgets/player_focus.dart
-index fc65205..4c1ff81 100644
+index 161b227..af7b4a0 100644
 --- a/lib/pages/video/widgets/player_focus.dart
 +++ b/lib/pages/video/widgets/player_focus.dart
 @@ -90,6 +90,41 @@ class PlayerFocus extends StatelessWidget {
@@ -15,7 +15,7 @@ index fc65205..4c1ff81 100644
 +        : (tenths - 1).clamp(1, 60);
 +    final newSpeed = newTenths / 10.0;
 +    plPlayerController
-+      ..setPlaybackSpeed(newSpeed)
++      ..setManualPlaybackSpeed(newSpeed)
 +      ..showKeyboardSpeedToast(newSpeed);
 +  }
 +
@@ -54,7 +54,7 @@ index fc65205..4c1ff81 100644
 +      if (event is KeyDownEvent && !plPlayerController.isLive && hasPlayer) {
 +        plPlayerController
 +          ..cancelLongPressTimer()
-+          ..setPlaybackSpeed(1.0)
++          ..setManualPlaybackSpeed(1.0)
 +          ..showKeyboardSpeedToast(1.0);
 +      }
 +      return true;
@@ -72,10 +72,10 @@ index fc65205..4c1ff81 100644
        if (!plPlayerController.isLive) {
          if (event is KeyDownEvent) {
 diff --git a/lib/plugin/pl_player/controller.dart b/lib/plugin/pl_player/controller.dart
-index 49e22fd..03f64a8 100644
+index 990e01a..bbc3273 100644
 --- a/lib/plugin/pl_player/controller.dart
 +++ b/lib/plugin/pl_player/controller.dart
-@@ -113,6 +113,17 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
+@@ -116,6 +116,17 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
    final RxDouble _playbackSpeed = Pref.playSpeedDefault.obs;
    late final RxDouble _longPressSpeed = Pref.longPressSpeedDefault.obs;
  
@@ -93,7 +93,7 @@ index 49e22fd..03f64a8 100644
    final RxDouble volume = RxDouble(
      PlatformUtils.isDesktop ? Pref.desktopVolume : 1.0,
    );
-@@ -2465,6 +2476,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
+@@ -2517,6 +2528,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
      speedLocked = false;
      _speedLockArmed = false;
      speedLockHint.value = SpeedLockHint.none;
@@ -101,7 +101,7 @@ index 49e22fd..03f64a8 100644
      _cancelSubForSeek();
      if (!_isCloseAll && _playerCount > 1) {
        _playerCount -= 1;
-@@ -2491,6 +2503,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
+@@ -2544,6 +2556,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
      }
      _timer?.cancel();
      persistVideoPictureSettings();
@@ -110,10 +110,10 @@ index 49e22fd..03f64a8 100644
      // _playerEventSubs?.cancel();
      // _sliderPosition.close();
 diff --git a/lib/plugin/pl_player/view/view.dart b/lib/plugin/pl_player/view/view.dart
-index 20cbe39..dfc4350 100644
+index 0d52155..250299f 100644
 --- a/lib/plugin/pl_player/view/view.dart
 +++ b/lib/plugin/pl_player/view/view.dart
-@@ -1707,6 +1707,37 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
+@@ -1822,6 +1822,37 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
              ),
            ),
  

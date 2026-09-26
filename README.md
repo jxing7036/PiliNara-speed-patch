@@ -2,7 +2,8 @@
 
 给 PiliNara（PiliPlus）添加 **Windows 端 Z/X/C 快捷键快速调节播放倍速** 的独立补丁。
 
-> 背景：上游作者尚未接受相关 PR，本补丁包让官方每次更新后无需手动改代码，直接一键构建。
+> 构建源码默认用 **你自己的 fork：`https://github.com/jxing7036/PiliNara.git` @ `main`**（Actions 里可用 `source_repo` / `source_ref` 覆盖成官方仓库或别的分支）。
+> 补丁基线 = fork main `aa993b3c0`（含上游 PiliPlus 2.1.5 合并）；上游作者未接受相关 PR，故用独立补丁包一键构建。
 
 ## 功能
 
@@ -22,7 +23,8 @@
 
 把本仓库推到 GitHub 后，内置的 `.github/workflows/build.yml` 会自动完成全部流程：
 
-手动触发：**Actions** 页 → **Build PiliNara (Z/X/C hotkey)** → **Run workflow**（每次跑都会拉取官方最新源码再构建）
+手动触发：**Actions** 页 → **Build PiliNara (Z/X/C hotkey)** → **Run workflow**
+（每次跑都会重新拉取源码再构建；`source_repo` 默认 `https://github.com/jxing7036/PiliNara.git`，`source_ref` 默认 `main`）
 
 产物在运行页的 **Artifacts**（`pilinara_zxc_windows_x64.zip`，便携版，解压即用）。
 勾选 `create_release` 后还会发布到 GitHub Release 的 `nightly` 预发布。
@@ -37,20 +39,21 @@ lib/plugin/pl_player/view/view.dart         # 倍速 toast UI
 ```
 ## 注意事项
 
-- 官方后续更新若改动这 3 个文件，`git apply` 会失败。此时构建脚本会自动做 **3 路合并**：
-  `patch-base/`（旧官方基线）+ `files/`（我们的改动）+ 新官方代码，自动把快捷键改动并到新版本上。
+- 构建源码改过这 3 个文件时，`git apply` 会失败。此时构建脚本会自动做 **3 路合并**：
+  `patch-base/`（基线 `aa993b3c0`）+ `files/`（我们的改动）+ 新源码，自动把快捷键改动并到新版上。
   → 合并干净则直接继续；有冲突则**中止构建并报错**，避免盲覆盖丢失官方改动，需人工更新 `patch-base/` 与 `files/` 后重试。
-- 更新补丁方式：官方改过这 3 个文件后，需人工把改动合并到新代码，再更新 `files/` 和 `patch-base/`（见下方）
+- 调速走 `setManualPlaybackSpeed()`（不是 `setPlaybackSpeed()`）：新版有「倍速锁定」，前者会先解锁再调速，锁定态下按 Z/X/C 也能生效。
+- 更新补丁方式：源码改过这 3 个文件后，需人工把改动合并到新代码，再更新 `files/` 和 `patch-base/`（见下方）
 
-## 如何重新生成补丁（官方改动冲突时需要）
+## 如何重新生成补丁（源码改动冲突时需要）
 
-在改好代码的仓库里，把 3 个文件更新到新官方版本并合入快捷键改动：
+在改好代码的仓库里，把 3 个文件更新到新基线并合入快捷键改动：
 
 ```bash
-git diff 旧官方commit 当前HEAD > pilinara_zxc_speed_hotkey.patch
+git diff <新基线commit> <当前HEAD> -- <这3个文件> > pilinara_zxc_speed_hotkey.patch
 # 同时更新:
 #   files/lib/.../*.dart       —— 合并后的完整文件（改动侧）
-#   patch-base/lib/.../*.dart  —— 新官方基线文件（合并基线）
+#   patch-base/lib/.../*.dart  —— 新基线文件（合并基线）
 ```
 
 

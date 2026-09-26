@@ -1,5 +1,5 @@
 # PiliNara Z/X/C 倍速快捷键 —— GitHub Actions 自动构建
-# 复刻 run.ps1 的完整流程：拉取官方最新源码 -> 应用补丁 -> 编译 Windows exe -> 上传产物
+# 流程：拉取源码（默认 jxing7036/PiliNara@main，可用 inputs 覆盖）-> 应用补丁 -> 编译 Windows exe -> 上传产物
 # 仅手动触发：Actions 页面点 Run workflow 即可构建最新版。
 
 name: Build PiliNara (Z/X/C hotkey)
@@ -7,6 +7,16 @@ name: Build PiliNara (Z/X/C hotkey)
 on:
   workflow_dispatch:
     inputs:
+      source_repo:
+        description: 源码仓库（默认你的 fork）
+        required: false
+        default: https://github.com/jxing7036/PiliNara.git
+        type: string
+      source_ref:
+        description: 分支 / tag
+        required: false
+        default: main
+        type: string
       create_release:
         description: 发布到 GitHub Release（nightly 预发布，覆盖上次）
         required: false
@@ -25,11 +35,15 @@ jobs:
       - name: Checkout patch repo
         uses: actions/checkout@v4
 
-      - name: Clone official PiliNara source
+      - name: Clone source (jxing7036/PiliNara)
         shell: pwsh
         run: |
-          git clone -q --depth 1 https://github.com/Starfallan/PiliNara.git PiliNara-source
-          if ($LASTEXITCODE -ne 0) { throw "克隆官方源码失败" }
+          $repo = '${{ inputs.source_repo }}'
+          $ref  = '${{ inputs.source_ref }}'
+          Write-Host "源码: $repo @ $ref"
+          git -c core.autocrlf=false clone -q --depth 1 --branch $ref $repo PiliNara-source
+          if ($LASTEXITCODE -ne 0) { throw "克隆源码失败: $repo @ $ref" }
+          Write-Host "  HEAD: $(git -C PiliNara-source log -1 --format='%h %ad %s' --date=short)"
 
       - name: Apply Z/X/C speed hotkey patch
         shell: pwsh

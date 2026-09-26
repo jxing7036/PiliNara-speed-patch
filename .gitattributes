@@ -1,0 +1,5 @@
+# 补丁与基线文件统一 LF：Windows 上 core.autocrlf=true 会把检出转成 CRLF，
+# 导致 3 路合并/打补丁时行尾不一致。
+*.patch text eol=lf
+patch-base/**/*.dart text eol=lf
+files/**/*.dart text eol=lf

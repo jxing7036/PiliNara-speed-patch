@@ -99,7 +99,7 @@ class PlayerFocus extends StatelessWidget {
         : (tenths - 1).clamp(1, 60);
     final newSpeed = newTenths / 10.0;
     plPlayerController
-      ..setPlaybackSpeed(newSpeed)
+      ..setManualPlaybackSpeed(newSpeed)
       ..showKeyboardSpeedToast(newSpeed);
   }
 
@@ -164,7 +164,7 @@ class PlayerFocus extends StatelessWidget {
       if (event is KeyDownEvent && !plPlayerController.isLive && hasPlayer) {
         plPlayerController
           ..cancelLongPressTimer()
-          ..setPlaybackSpeed(1.0)
+          ..setManualPlaybackSpeed(1.0)
           ..showKeyboardSpeedToast(1.0);
       }
       return true;
@@ -208,17 +208,6 @@ class PlayerFocus extends StatelessWidget {
     }
 
     if (event is KeyDownEvent) {
-      final isDigit1 = key == LogicalKeyboardKey.digit1;
-      if (isDigit1 || key == LogicalKeyboardKey.digit2) {
-        if (HardwareKeyboard.instance.isShiftPressed && hasPlayer) {
-          final speed = isDigit1 ? 1.0 : 2.0;
-          // 无条件走手动调速：锁定态下即使速度相同也需要解除锁定
-          plPlayerController.setManualPlaybackSpeed(speed);
-          SmartDialog.showToast('${speed}x播放');
-        }
-        return true;
-      }
-
       switch (key) {
         case LogicalKeyboardKey.space:
           if (plPlayerController.isLive || canPlay!()) {
@@ -297,6 +286,17 @@ class PlayerFocus extends StatelessWidget {
       }
 
       if (!plPlayerController.isLive) {
+        final isDigit1 = key == LogicalKeyboardKey.digit1;
+        if (isDigit1 || key == LogicalKeyboardKey.digit2) {
+          if (HardwareKeyboard.instance.isShiftPressed && hasPlayer) {
+            final speed = isDigit1 ? 1.0 : 2.0;
+            // 无条件走手动调速：锁定态下即使速度相同也需要解除锁定
+            plPlayerController.setManualPlaybackSpeed(speed);
+            SmartDialog.showToast('${speed}x播放');
+          }
+          return true;
+        }
+
         switch (key) {
           case LogicalKeyboardKey.arrowLeft:
             if (hasPlayer) {
